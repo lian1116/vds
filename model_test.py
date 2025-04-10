@@ -11,22 +11,22 @@ import torch
 import pandas as pd
 class CustomImageDataset(Dataset):
     """
-    自定义数据集类，用于加载 jiguang 文件夹下的图片数据
+    Custom dataset class for loading image data from the 'jiguang' folder
     """
     def __init__(self, root_dir, transform=None):
         """
-        :param root_dir: 根目录（jiguang）
-        :param transform: 数据预处理
+        :param root_dir: Root directory ('jiguang')
+        :param transform: Data preprocessing
         """
         self.root_dir = root_dir
         self.transform = transform
-        self.classes = os.listdir(root_dir)  # 获取所有文件夹名称（即类别）
-        self.class_to_idx = {cls_name: idx for idx, cls_name in enumerate(self.classes)}  # 类别名称到索引的映射
-        self.images = self._load_images()  # 加载所有图片路径和标签
+        self.classes = os.listdir(root_dir)  # Get all folder names (i.e., categories)
+        self.class_to_idx = {cls_name: idx for idx, cls_name in enumerate(self.classes)}  # Mapping category names to indices
+        self.images = self._load_images()  # Load all image paths and labels
 
     def _load_images(self):
         """
-        加载所有图片路径和标签
+        Load all image paths and labels
         """
         images = []
         for cls_name in self.classes:
@@ -36,7 +36,7 @@ class CustomImageDataset(Dataset):
             for img_name in os.listdir(cls_dir):
                 img_path = os.path.join(cls_dir, img_name)
                 if os.path.isfile(img_path):
-                    images.append((img_path, self.class_to_idx[cls_name]))  # (图片路径, 标签)
+                    images.append((img_path, self.class_to_idx[cls_name]))  # (image path, label)
         return images
 
     def __len__(self):
@@ -44,44 +44,44 @@ class CustomImageDataset(Dataset):
 
     def __getitem__(self, idx):
         img_path, label = self.images[idx]
-        image = Image.open(img_path).convert('RGB')  # 打开图片并转换为 RGB 格式
+        image = Image.open(img_path).convert('RGB')  # Open image and convert to RGB format
         if self.transform:
             image = self.transform(image)
         return image, label
 
 def test_data_process():
     """
-    加载 jiguang 文件夹下的数据，并划分为训练集和验证集
+    Load data from the 'jiguang' folder and split it into training and validation sets
     """
-    # 数据预处理
+    # Data preprocessing
     transform = transforms.Compose([
-        transforms.Resize(size=224),  # 调整图片大小
-        transforms.ToTensor(),  # 转换为张量
-        transforms.Normalize(  # 标准化
-            mean=[0.485, 0.456, 0.406],  # 均值
-            std=[0.229, 0.224, 0.225]  # 标准差
+        transforms.Resize(size=224),  # Resize images
+        transforms.ToTensor(),  # Convert to tensor
+        transforms.Normalize(  # Normalize
+            mean=[0.485, 0.456, 0.406],  # Mean
+            std=[0.229, 0.224, 0.225]  # Standard deviation
         )
     ])
 
-    # 加载自定义数据集
+    # Load custom dataset
     dataset = CustomImageDataset(root_dir='jiguang', transform=transform)
 
-    # 划分训练集和验证集
-    train_size = int(0.8 * len(dataset))  # 80% 训练集
-    val_size = len(dataset) - train_size  # 20% 验证集
+    # Split into training and validation sets
+    train_size = int(0.8 * len(dataset))  # 80% training set
+    val_size = len(dataset) - train_size  # 20% validation set
     print(val_size)
     generator1 = torch.Generator().manual_seed(666)
     train_data, val_data = torch.utils.data.random_split(dataset, [train_size, val_size],generator=generator1)
 
-    # 训练集加载器
+    # Training data loader
     train_dataloader = DataLoader(
         dataset=train_data,
-        batch_size=128,  # 批次大小
-        shuffle=True,  # 打乱数据
-        num_workers=2  # 多进程加载
+        batch_size=128,  # Batch size
+        shuffle=True,  # Shuffle data
+        num_workers=2  # Use multiple processes for loading data
     )
 
-    # 验证集加载器
+    # Validation data loader
     val_dataloader = DataLoader(
         dataset=val_data,
         batch_size=128,
@@ -93,58 +93,59 @@ def test_data_process():
 
 
 def test_model_process(model, test_dataloader, output_csv="test_results.csv"):
-    # 设定测试所用到的设备，有GPU用GPU没有GPU用CPU
+    # Set the device to be used for testing, GPU if available, otherwise CPU
     device = "cuda" if torch.cuda.is_available() else 'cpu'
 
-    # 将模型放入到训练设备中
+    # Move model to the selected device
     model = model.to(device)
 
-    # 初始化参数
+    # Initialize parameters
     test_corrects = 0.0
     test_num = 0
 
-    # 用于存储预测标签和实际标签
+    # Store predicted and actual labels
     predictions = []
     actual_labels = []
 
-    # 只进行前向传播计算，不计算梯度，从而节省内存，加快运行速度
+    # Only perform forward propagation without calculating gradients to save memory and speed up execution
     with torch.no_grad():
         for test_data_x, test_data_y in test_dataloader:
-            # 将特征放入到测试设备中
+            # Move features to the testing device
             test_data_x = test_data_x.to(device)
-            # 将标签放入到测试设备中
+            # Move labels to the testing device
             test_data_y = test_data_y.to(device)
-            # 设置模型为评估模式
+            # Set model to evaluation mode
             model.eval()
-            # 前向传播过程，输入为测试数据集，输出为对每个样本的预测值
+            # Perform forward propagation, input is the test dataset, output is the prediction for each sample
             output = model(test_data_x)
-            # 查找每一行中最大值对应的行标
+            # Find the index of the maximum value in each row
             pre_lab = torch.argmax(output, dim=1)
-            # 如果预测正确，则准确度test_corrects加1
+            # If prediction is correct, increase the correct count
             test_corrects += torch.sum(pre_lab == test_data_y.data)
-            # 将所有的测试样本进行累加
+            # Add all test samples to the total count
             test_num += test_data_x.size(0)
 
-            # 将预测标签和实际标签存入列表
-            predictions.extend(pre_lab.cpu().numpy())  # 将预测标签从 GPU 移到 CPU 并转换为 numpy 数组
-            actual_labels.extend(test_data_y.cpu().numpy())  # 将实际标签从 GPU 移到 CPU 并转换为 numpy 数组
+            # Store predicted and actual labels in lists
+            predictions.extend(pre_lab.cpu().numpy())  # Move predicted labels from GPU to CPU and convert to numpy array
+            actual_labels.extend(test_data_y.cpu().numpy())  # Move actual labels from GPU to CPU and convert to numpy array
 
-    # 计算测试准确率
+    # Calculate the test accuracy
     test_acc = test_corrects.double().item() / test_num
-    print("测试的准确率为：", test_acc)
+    print("Test accuracy: ", test_acc)
 
-    # 将预测标签和实际标签保存到 CSV 文件
+    # Save the predicted and actual labels to a CSV file
     results_df = pd.DataFrame({
         "Predicted Label": predictions,
         "Actual Label": actual_labels
     })
     results_df.to_csv(output_csv, index=False)
-    print(f"测试结果已保存到 {output_csv}")
+    print(f"Test results saved to {output_csv}")
+
 if __name__ == "__main__":
-    # 加载模型
+    # Load the model
     model = resnet2_simple(num_classes=8)
-    model.load_state_dict(torch.load('./model_save/ResNet18_best_model.pth'))  # 调用训练好的参数权重
-    # 加载测试数据
+    model.load_state_dict(torch.load('./model_save/ResNet18_best_model.pth'))  # Load the trained model weights
+    # Load test data
     test_dataloader = test_data_process()
-    # 加载模型测试的函数
+    # Call the function to test the model
     test_model_process(model, test_dataloader)
